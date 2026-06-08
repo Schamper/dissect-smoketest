@@ -1,0 +1,5 @@
+os: macos
+arch: arm64
+runner: macos
+markers:
+  - apfs

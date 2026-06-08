@@ -1,0 +1,22 @@
+#cloud-config
+hostname: dissect-freebsd-15.1
+fqdn: dissect-freebsd-15.1.smoketest
+
+users:
+  - default
+  - name: user
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    plain_text_passwd: password
+
+ssh_pwauth: true
+
+packages:
+  - sudo
+
+write_files:
+  - path: /etc/dissect-smoketest/provisioned
+    content: |
+      template=freebsd-15.1
+      lifecycle=pinned
+    permissions: '0644'

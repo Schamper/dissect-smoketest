@@ -1,0 +1,19 @@
+#cloud-config
+hostname: dissect-fedora-44
+fqdn: dissect-fedora-44.smoketest
+
+users:
+  - default
+  - name: user
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    plain_text_passwd: password
+
+ssh_pwauth: true
+
+write_files:
+  - path: /etc/dissect-smoketest/provisioned
+    content: |
+      template=fedora-44
+      lifecycle=pinned
+    permissions: '0644'

@@ -1,0 +1,196 @@
+name: build
+
+# Build Packer templates.
+#
+# Triggers:
+#   push to main           — build + test + upload (pinned only)
+#   schedule (weekly)      — build + test + upload (rolling only)
+#   pull_request           — build + test (all), no upload
+#   workflow_dispatch      — manual rebuild of everything
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'templates/*/**'
+      - 'scripts/hash.py'
+      - 'scripts/matrix.py'
+      - 'scripts/storage.py'
+      - '.github/workflows/build.yml'
+  pull_request:
+    paths:
+      - 'templates/*/**'
+      - 'scripts/hash.py'
+      - 'scripts/matrix.py'
+      - 'scripts/storage.py'
+      - '.github/workflows/build.yml'
+  schedule:
+    # Weekly, Sunday 02:10 UTC
+    - cron: '10 2 * * 0'
+  workflow_dispatch:
+    inputs:
+      lifecycle:
+        description: 'Which templates to build'
+        type: choice
+        default: all
+        options:
+          - all
+          - pinned
+          - rolling
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      templates: ${{ steps.list.outputs.templates }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3  # v4.0.0
+      - id: list
+        run: |
+          set -euo pipefail
+          # push to main → pinned only; cron → rolling only;
+          # workflow_dispatch → user choice; PR → all
+          case "${{ github.event_name }}" in
+            push)              lifecycle=pinned ;;
+            schedule)          lifecycle=rolling ;;
+            workflow_dispatch) lifecycle=${{ inputs.lifecycle }} ;;
+            *)                 lifecycle=all ;;
+          esac
+          templates=$(just matrix "$lifecycle" --skip-built)
+          echo "templates=$templates" >> "$GITHUB_OUTPUT"
+          echo "Discovered templates ($lifecycle): $templates"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          S3_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
+
+  build:
+    name: ${{ matrix.template }}
+    needs: discover
+    if: needs.discover.outputs.templates != '[]'
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.discover.outputs.templates) }}
+    concurrency:
+      group: build-${{ matrix.lifecycle }}-${{ matrix.template }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+
+      - name: Install build tooling
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends ${{ matrix.packages }}
+            sudo usermod -aG kvm "$USER"
+            ls -l /dev/kvm
+          else
+            brew tap cirruslabs/cli
+            brew trust cirruslabs/cli || true
+            brew install ${{ matrix.packages }}
+          fi
+
+      - uses: hashicorp/setup-packer@ce93c3c08a6c2ff2275bf4b54ff0d9a75f6c9789  # v3.4.0
+        with:
+          version: latest
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3  # v4.0.0
+
+      - name: Fetch template assets
+        run: just fetch-assets ${{ matrix.template }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          S3_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
+
+      - name: Compute template version
+        id: hash
+        run: |
+          slug=$(echo "${{ matrix.template }}" | tr '/' '-')
+          # Pinned images are addressed by content hash; rolling images change
+          # without the template changing, so we use a date stamp instead.
+          if [[ "${{ matrix.lifecycle }}" == "rolling" ]]; then
+            version=$(date -u +%Y%m%d)
+          else
+            version=$(just hash ${{ matrix.template }})
+          fi
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Template version: $version"
+
+      # Debug aid for headless QEMU builds: periodically grab the VM's VNC
+      # framebuffer so a failed/stalled install can be inspected visually.
+      - name: Start VM screenshot capture
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p "$RUNNER_TEMP/build-screenshots"
+          cat > "$RUNNER_TEMP/capture.sh" <<'EOF'
+          set -u
+          out="$RUNNER_TEMP/build-screenshots"
+          # Wait for QEMU's VNC port (127.0.0.1:5900-6019) to come up.
+          port=""
+          while [ -z "$port" ]; do
+            port=$(ss -ltn 2>/dev/null | grep -oE '127\.0\.0\.1:(59[0-9][0-9]|60[01][0-9])' | grep -oE '[0-9]+$' | sort -u | head -1)
+            [ -n "$port" ] && break
+            sleep 2
+          done
+          echo "capturing VNC 127.0.0.1:$port"
+          n=0
+          while true; do
+            n=$((n + 1))
+            ts=$(date -u +%Y%m%d-%H%M%S)
+            uvx --from vncdotool vncdo -s "127.0.0.1::$port" capture \
+              "$out/$ts-$(printf '%04d' "$n").png" >/dev/null 2>&1 || true
+            sleep 30
+          done
+          EOF
+          setsid nohup bash "$RUNNER_TEMP/capture.sh" >"$RUNNER_TEMP/build-screenshots/capture.log" 2>&1 &
+          echo "started capture (pid $!)"
+
+      - name: Packer build
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            sg kvm -c "just build ${{ matrix.template }} ${{ matrix.args }}"
+          else
+            just build ${{ matrix.template }} ${{ matrix.args }}
+          fi
+        env:
+          PACKER_LOG: 1
+          PACKER_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload build screenshots
+        if: failure() && runner.os == 'Linux'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: build-screenshots-${{ steps.hash.outputs.slug }}
+          path: ${{ runner.temp }}/build-screenshots
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - run: uv sync
+
+      - name: Run smoketests
+        run: just blaze it
+
+      - name: Upload image
+        if: github.event_name != 'pull_request'
+        run: just upload ${{ matrix.template }} ${{ steps.hash.outputs.version }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          S3_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
+
+      - name: Prune old image versions
+        if: github.event_name != 'pull_request'
+        run: just prune ${{ matrix.template }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          S3_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
+          S3_BUCKET: ${{ vars.S3_BUCKET }}

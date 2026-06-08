@@ -1,0 +1,19 @@
+#cloud-config
+hostname: dissect-amazonlinux-2023
+fqdn: dissect-amazonlinux-2023.smoketest
+
+users:
+  - default
+  - name: user
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    plain_text_passwd: password
+
+ssh_pwauth: true
+
+write_files:
+  - path: /etc/dissect-smoketest/provisioned
+    content: |
+      template=amazonlinux-2023
+      lifecycle=pinned
+    permissions: '0644'

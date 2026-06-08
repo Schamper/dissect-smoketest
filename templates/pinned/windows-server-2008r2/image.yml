@@ -1,0 +1,8 @@
+os: windows
+arch: amd64
+markers:
+  - ntfs
+assets:
+  - path: "misc/OpenSSH-Win64.msi"
+    url: "https://github.com/PowerShell/Win32-OpenSSH/releases/download/10.0.0.0p2-Preview/OpenSSH-Win64-v10.0.0.0.msi"
+    sha256: "ddec9c53864280759cf9f74791cefd387100e3946aa849a1c138a4ed1b96b7d9"

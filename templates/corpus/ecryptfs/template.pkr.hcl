@@ -1,0 +1,76 @@
+# eCryptfs encrypted home on Debian (passphrase: password)
+packer {
+  required_plugins {
+    qemu = {
+      source  = "github.com/hashicorp/qemu"
+      version = "~> 1.1"
+    }
+  }
+}
+
+variable "iso_url" {
+  type    = string
+  default = "https://cdimage.debian.org/cdimage/archive/13.5.0/amd64/iso-cd/debian-13.5.0-amd64-netinst.iso"
+}
+
+variable "iso_checksum" {
+  type    = string
+  default = "file:https://cdimage.debian.org/cdimage/archive/13.5.0/amd64/iso-cd/SHA256SUMS"
+}
+
+variable "headless" {
+  type    = bool
+  default = true
+}
+
+source "qemu" "build" {
+  iso_url            = var.iso_url
+  iso_checksum       = var.iso_checksum
+  disk_size          = "8G"
+  disk_discard       = "unmap"
+  disk_detect_zeroes = "on"
+  disk_compression   = true
+  format             = "qcow2"
+
+  cpu_model = "host"
+  cpus      = 2
+  memory    = 2048
+  headless  = var.headless
+
+  qemuargs = [
+    ["-machine", "accel=kvm:hvf:whpx:tcg"],
+    ["-serial", "stdio"],
+  ]
+
+  http_directory = "${path.root}/preseed"
+
+  boot_command = [
+    "<esc><wait>",
+    "install auto=true priority=critical url=http://{{ .HTTPIP }}:{{ .HTTPPort }}/preseed.cfg",
+    "<enter>",
+  ]
+  boot_key_interval = "10ms"
+  boot_wait         = "5s"
+
+  communicator = "ssh"
+  ssh_username = "user"
+  ssh_password = "password"
+  ssh_timeout  = "30m"
+
+  shutdown_command = "sudo poweroff"
+
+  output_directory = "${path.cwd}/local/build/${basename(dirname(path.root))}/${basename(path.root)}"
+  vm_name          = "disk"
+}
+
+build {
+  sources = ["source.qemu.build"]
+
+  provisioner "shell" {
+    inline = [
+      # PAM auto-mounts the ecryptfs home at SSH login (set up by the installer).
+      # Any file written here lands as ciphertext in ~/.Private on disk.
+      "echo 'dissect smoketest ecryptfs secret' > ~/secret.txt",
+    ]
+  }
+}

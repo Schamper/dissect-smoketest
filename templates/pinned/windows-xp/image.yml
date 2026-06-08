@@ -1,0 +1,9 @@
+os: windows
+arch: x86
+markers:
+  - ntfs
+assets:
+  - "iso/en_windows_xp_professional_with_service_pack_3_x86_cd_x14-80428.iso"
+  - path: "misc/setupssh-7.3p1-2-cygwin252.exe"
+    url: "https://www.mls-software.com/files/setupssh-7.3p1-2-cygwin252.exe"
+    sha256: "700176fc58c9a756f668243977ed0474a0a19ea366b3b564896758c02213c231"

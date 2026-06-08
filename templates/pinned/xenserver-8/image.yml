@@ -1,0 +1,4 @@
+os: xenserver
+arch: amd64
+markers:
+  - xenserver

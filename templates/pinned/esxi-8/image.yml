@@ -1,0 +1,6 @@
+os: esxi
+arch: amd64
+markers:
+  - esxi
+assets:
+  - "iso/VMware-VMvisor-Installer-8.0U3j-25429389.x86_64.iso"

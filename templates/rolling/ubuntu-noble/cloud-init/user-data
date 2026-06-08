@@ -1,0 +1,22 @@
+#cloud-config
+hostname: dissect-ubuntu-noble
+fqdn: dissect-ubuntu-noble.smoketest
+
+users:
+  - default
+  - name: user
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    plain_text_passwd: password
+
+ssh_pwauth: true
+
+package_update: true
+package_upgrade: true
+
+write_files:
+  - path: /etc/dissect-smoketest/provisioned
+    content: |
+      template=ubuntu-noble
+      lifecycle=rolling
+    permissions: '0644'
