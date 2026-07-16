@@ -1,0 +1,22 @@
+#cloud-config
+hostname: zfs
+fqdn: zfs.smoketest
+
+users:
+  - default
+  - name: user
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    plain_text_passwd: password
+
+ssh_pwauth: true
+
+packages:
+  - sudo
+
+write_files:
+  - path: /etc/dissect-smoketest/provisioned
+    content: |
+      template=zfs
+      lifecycle=corpus
+    permissions: '0644'

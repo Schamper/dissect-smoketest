@@ -1,0 +1,19 @@
+#cloud-config
+hostname: dissect-almalinux-10
+fqdn: dissect-almalinux-10.smoketest
+
+users:
+  - default
+  - name: user
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    plain_text_passwd: password
+
+ssh_pwauth: true
+
+write_files:
+  - path: /etc/dissect-smoketest/provisioned
+    content: |
+      template=almalinux-10
+      lifecycle=pinned
+    permissions: '0644'

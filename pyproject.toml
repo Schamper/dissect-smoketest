@@ -1,0 +1,18 @@
+[project]
+name = "dissect-smoketest"
+version = "0.0.1"
+description = "Integration test harness for Dissect against OS images"
+requires-python = ">=3.10"
+dependencies = [
+    "dissect",
+    "pytest>=8.4.0",
+    "ruamel.yaml"
+]
+
+[dependency-groups]
+lint = ["ruff==0.13.1", "vermin>=1.6.0", "typing_extensions"]
+debug = ["ipdb"]
+dev = [{include-group = "lint"}, {include-group = "debug"}]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

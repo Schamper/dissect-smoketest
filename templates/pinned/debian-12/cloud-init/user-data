@@ -1,0 +1,19 @@
+#cloud-config
+hostname: dissect-debian-12
+fqdn: dissect-debian-12.smoketest
+
+users:
+  - default
+  - name: user
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    plain_text_passwd: password
+
+ssh_pwauth: true
+
+write_files:
+  - path: /etc/dissect-smoketest/provisioned
+    content: |
+      template=debian-12
+      lifecycle=pinned
+    permissions: '0644'

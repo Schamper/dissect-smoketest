@@ -1,0 +1,6 @@
+os: esxi
+arch: amd64
+markers:
+  - esxi
+assets:
+  - "iso/VMware-VMvisor-Installer-9.1.0.0100.25433460.x86_64.iso"

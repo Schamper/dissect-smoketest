@@ -1,0 +1,4 @@
+os: freebsd
+arch: amd64
+markers:
+  - zfs

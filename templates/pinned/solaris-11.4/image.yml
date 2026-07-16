@@ -1,0 +1,6 @@
+os: solaris
+arch: amd64
+markers:
+  - zfs
+assets:
+  - "iso/sol-11_4-ai-x86.iso"

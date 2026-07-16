@@ -1,0 +1,49 @@
+[Data]
+Autopartition=1
+MsDosInitiated=0
+UnattendedInstall="Yes"
+
+[Unattended]
+Repartition=Yes
+UnattendMode=FullUnattended
+UnattendSwitch="Yes"
+OemPreinstall="Yes"
+OemSkipEula="Yes"
+FileSystem=*
+WaitForReboot="No"
+NoWaitAfterTextMode=1
+NoWaitAfterGUIMode=1
+DriverSigningPolicy=Ignore
+NonDriverSigningPolicy=Ignore
+
+[GuiUnattended]
+EncryptedAdminPassword="No"
+AutoLogon="Yes"
+AdminPassword="rotartsinimda"
+TimeZone=020
+OEMSkipRegional=1
+OemSkipWelcome=1
+
+[Components]
+
+[UserData]
+ProductKey="X3WJB-3B2BH-3MPM6-8F6GR-X9HBJ"
+ComputerName="WINXP"
+FullName="user"
+OrgName="dissect"
+
+[RegionalSettings]
+LanguageGroup=1
+Language="0409"
+
+[Networking]
+InstallDefaultComponents="Yes"
+
+[Identification]
+JoinWorkgroup="WORKGROUP"
+
+[GuiRunOnce]
+Command0="cmd /c mkdir C:\dissect-smoketest"
+Command1="cmd /c echo template=windows-xp> C:\dissect-smoketest\provisioned"
+Command2="cmd /c echo lifecycle=pinned>> C:\dissect-smoketest\provisioned"
+Command3="cmd /c A:\setup.cmd"

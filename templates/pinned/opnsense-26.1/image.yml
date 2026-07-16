@@ -1,0 +1,6 @@
+os: freebsd
+arch: amd64
+markers:
+  - freebsd
+  - ufs
+  - opnsense

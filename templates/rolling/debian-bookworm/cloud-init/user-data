@@ -1,0 +1,24 @@
+#cloud-config
+hostname: dissect-debian-bookworm
+fqdn: dissect-debian-bookworm.smoketest
+
+users:
+  - default
+  - name: user
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    plain_text_passwd: password
+
+ssh_pwauth: true
+
+# Pull the full current package set so the built image reflects what a
+# freshly-patched bookworm host looks like at build time.
+package_update: true
+package_upgrade: true
+
+write_files:
+  - path: /etc/dissect-smoketest/provisioned
+    content: |
+      template=debian-bookworm
+      lifecycle=rolling
+    permissions: '0644'
